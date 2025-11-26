@@ -156,10 +156,10 @@ router.post('/:id/send',
 
         // Fetch recipients
         const { rows: recipients } = await db.query(`
-      SELECT c.email, c.name
+      SELECT c.email, c.name, c.unsubscribe_token
       FROM contacts c
       JOIN group_members gm ON c.id = gm.contact_id
-      WHERE gm.group_id = $1 AND c.is_active = true
+      WHERE gm.group_id = $1 AND c.is_active = true AND c.unsubscribed_at IS NULL
     `, [campaign.group_id]);
 
         if (recipients.length === 0) {
@@ -185,6 +185,7 @@ router.post('/:id/send',
             const subject = campaign.subject || campaign.tpl_subject;
             const htmlContent = campaign.html_content || campaign.tpl_html;
             const textContent = campaign.text_content || campaign.tpl_text;
+            const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 
             // Helper to inject brand variables
             const injectBrandVariables = (content, brandData) => {
@@ -206,6 +207,10 @@ router.post('/:id/send',
                 let injected = content;
                 injected = injected.replace(/\{\{name\}\}/g, recipient.name || '');
                 injected = injected.replace(/\{\{email\}\}/g, recipient.email || '');
+
+                const unsubscribeUrl = `${clientUrl}/unsubscribe?token=${recipient.unsubscribe_token}`;
+                injected = injected.replace(/\{\{unsubscribe_url\}\}/g, unsubscribeUrl);
+
                 return injected;
             };
 

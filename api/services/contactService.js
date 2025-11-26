@@ -1,4 +1,10 @@
 import { db } from '../config/database.js';
+import crypto from 'crypto';
+
+/**
+ * Generate a random unsubscribe token
+ */
+const generateToken = () => crypto.randomBytes(32).toString('hex');
 
 /**
  * Get all contacts for a user
@@ -9,6 +15,7 @@ export const getUserContacts = async (userId, filters = {}) => {
         .select('*')
         .eq('user_id', userId)
         .eq('is_active', true)
+        .is('unsubscribed_at', null) // Filter out unsubscribed contacts by default
         .order('name', { ascending: true });
 
     // Apply filters if provided
@@ -34,6 +41,7 @@ export const searchContacts = async (userId, searchQuery) => {
         .select('*')
         .eq('user_id', userId)
         .eq('is_active', true)
+        .is('unsubscribed_at', null)
         .or(`name.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%`)
         .order('name', { ascending: true })
         .execute();
@@ -79,6 +87,7 @@ export const createContact = async (userId, contactData) => {
             notes: notes || null,
             tags: tags || [],
             is_active: true,
+            unsubscribe_token: generateToken(),
         })
         .select()
         .single()
@@ -148,6 +157,7 @@ export const bulkCreateContacts = async (userId, contacts) => {
         notes: c.notes || null,
         tags: c.tags || [],
         is_active: true,
+        unsubscribe_token: generateToken(),
     }));
 
     const { data, error } = await db
@@ -177,4 +187,26 @@ export const bulkDeleteContacts = async (userId, contactIds) => {
     if (error) {
         throw new Error(`Failed to bulk delete contacts: ${error.message}`);
     }
+};
+
+/**
+ * Unsubscribe contact by token
+ */
+export const unsubscribeContact = async (token) => {
+    const { data: contact, error } = await db
+        .from('contacts')
+        .update({
+            unsubscribed_at: new Date().toISOString(),
+            is_active: false
+        })
+        .eq('unsubscribe_token', token)
+        .select()
+        .single()
+        .execute();
+
+    if (error) {
+        throw new Error(`Failed to unsubscribe contact: ${error.message}`);
+    }
+
+    return contact;
 };

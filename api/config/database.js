@@ -100,6 +100,11 @@ class QueryBuilder {
     return this;
   }
 
+  is(column, value) {
+    this.whereClauses.push({ op: 'is', column, value });
+    return this;
+  }
+
   not(column, comparator, value) {
     this.whereClauses.push({ op: 'not', column, comparator, value });
     return this;
@@ -154,6 +159,14 @@ class QueryBuilder {
       if (w.op === 'in') {
         values.push(w.value);
         return `${w.column} = ANY($${paramIdx++})`;
+      }
+      if (w.op === 'is') {
+        if (w.value === null || w.value === 'null') {
+          return `${w.column} IS NULL`;
+        }
+        // Fallback to equality if not null (though .eq should be used)
+        values.push(w.value);
+        return `${w.column} = $${paramIdx++}`;
       }
       if (w.op === 'not') {
         if (w.comparator === 'is' && (w.value === null || w.value === 'null')) {

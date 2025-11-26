@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { Users, Plus, Trash2, Edit2, Save, X, Search } from 'lucide-react';
+import { Users, Plus, Trash2, Edit2, Save, X, Search, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import CsvUploader from '../components/CsvUploader';
 
 const Contacts = () => {
     const [contacts, setContacts] = useState([]);
@@ -9,6 +10,7 @@ const Contacts = () => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [editingContact, setEditingContact] = useState(null);
     const [formData, setFormData] = useState({
         email: '',
@@ -96,6 +98,29 @@ const Contacts = () => {
         }
     };
 
+    const handleBulkUpload = async (newContacts) => {
+        try {
+            // Process in chunks of 100 to avoid payload limits
+            const chunkSize = 100;
+            const chunks = [];
+            for (let i = 0; i < newContacts.length; i += chunkSize) {
+                chunks.push(newContacts.slice(i, i + chunkSize));
+            }
+
+            let successCount = 0;
+            for (const chunk of chunks) {
+                const response = await api.post('/contacts/bulk', { contacts: chunk });
+                successCount += response.data.count || 0;
+            }
+
+            toast.success(`Successfully imported ${successCount} contacts`);
+            fetchContacts();
+        } catch (error) {
+            console.error('Bulk upload failed:', error);
+            toast.error('Failed to import contacts');
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-8 flex items-center justify-center">
@@ -113,13 +138,22 @@ const Contacts = () => {
                         Manage your email recipients and contacts
                     </p>
                 </div>
-                <button
-                    onClick={handleCreate}
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Contact
-                </button>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => setShowImportModal(true)}
+                        className="flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                        <Upload className="w-4 h-4 mr-2" />
+                        Import CSV
+                    </button>
+                    <button
+                        onClick={handleCreate}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Contact
+                    </button>
+                </div>
             </div>
 
             {/* Search */}
@@ -149,13 +183,22 @@ const Contacts = () => {
                         }
                     </p>
                     {!searchQuery && (
-                        <button
-                            onClick={handleCreate}
-                            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                        >
-                            <Plus className="w-4 h-4 mr-2" />
-                            Add Your First Contact
-                        </button>
+                        <div className="flex justify-center gap-3">
+                            <button
+                                onClick={() => setShowImportModal(true)}
+                                className="inline-flex items-center px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Import CSV
+                            </button>
+                            <button
+                                onClick={handleCreate}
+                                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add Contact
+                            </button>
+                        </div>
                     )}
                 </div>
             ) : (
@@ -293,6 +336,14 @@ const Contacts = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Import CSV Modal */}
+            {showImportModal && (
+                <CsvUploader
+                    onUpload={handleBulkUpload}
+                    onClose={() => setShowImportModal(false)}
+                />
             )}
         </div>
     );

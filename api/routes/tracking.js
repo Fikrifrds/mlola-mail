@@ -1,8 +1,30 @@
 import { Router } from 'express';
 import { emailTrackingService } from '../services/emailTrackingService.js';
+import { unsubscribeContact } from '../services/contactService.js';
 import { asyncHandler } from '../middleware/error.js';
 
 const router = Router();
+
+// Unsubscribe endpoint
+router.post('/unsubscribe',
+  asyncHandler(async (req, res) => {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token is required',
+      });
+    }
+
+    await unsubscribeContact(token);
+
+    res.json({
+      success: true,
+      message: 'Successfully unsubscribed',
+    });
+  })
+);
 
 // Tracking pixel endpoint (public)
 router.get('/pixel/:trackingId',
@@ -13,7 +35,7 @@ router.get('/pixel/:trackingId',
 
     // Decode tracking ID to get email ID
     const trackingData = emailTrackingService.decodeTrackingId(trackingId);
-    
+
     if (trackingData) {
       // Record email open event
       await emailTrackingService.recordOpen(trackingData.emailId, userAgent, ipAddress);
@@ -21,13 +43,13 @@ router.get('/pixel/:trackingId',
 
     // Return 1x1 transparent pixel
     const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-    
+
     res.setHeader('Content-Type', 'image/gif');
     res.setHeader('Content-Length', pixel.length);
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.setHeader('Expires', '0');
     res.setHeader('Pragma', 'no-cache');
-    
+
     res.send(pixel);
   })
 );
@@ -49,7 +71,7 @@ router.get('/click/:trackingId',
 
     // Decode tracking ID to get email ID
     const trackingData = emailTrackingService.decodeTrackingId(trackingId);
-    
+
     if (trackingData) {
       // Record email click event
       await emailTrackingService.recordClick(trackingData.emailId, url, userAgent, ipAddress);

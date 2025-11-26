@@ -17,6 +17,7 @@ import EmailHistory from './pages/EmailHistory';
 import Brands from './pages/Brands';
 import Groups from './pages/Groups';
 import Campaigns from './pages/Campaigns';
+import Unsubscribe from './pages/Unsubscribe';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
 
               {/* Protected routes */}
               <Route path="/" element={

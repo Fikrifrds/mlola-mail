@@ -91,20 +91,47 @@ router.post('/send',
       throw new Error(`Failed to create email record: ${emailError.message}`);
     }
 
+    // Helper function to inject recipient variables
+    const injectRecipientVariables = (content, recipient, globalVariables) => {
+      if (!content) return content;
+      let injected = content;
+
+      // 1. Replace global variables first
+      if (globalVariables) {
+        Object.keys(globalVariables).forEach(key => {
+          // Escape special regex characters in key
+          const safeKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(`\\{\\{${safeKey}\\}\\}`, 'g');
+          injected = injected.replace(regex, globalVariables[key] || '');
+        });
+      }
+
+      // 2. Replace recipient specific variables
+      injected = injected.replace(/\{\{name\}\}/g, recipient.name || '');
+      injected = injected.replace(/\{\{email\}\}/g, recipient.email || '');
+
+      return injected;
+    };
+
     try {
       // Bulk send: iterate recipients
       const results = [];
       for (const recipient of recipients) {
         try {
+          // Inject variables for this specific recipient
+          const recipientSubject = injectRecipientVariables(finalSubject, recipient, variables);
+          const recipientHtml = injectRecipientVariables(finalHtmlContent, recipient, variables);
+          const recipientText = injectRecipientVariables(finalTextContent, recipient, variables);
+
           const emailRecord = await emailService.sendEmail(
             userId,
             recipient,
-            finalSubject,  // Use brand-injected subject
-            finalHtmlContent,  // Use brand-injected HTML
-            finalTextContent,  // Use brand-injected text
+            recipientSubject,
+            recipientHtml,
+            recipientText,
             templateId || undefined,
             email.id,
-            senderAddressId || undefined  // Pass sender address ID
+            senderAddressId || undefined
           );
           results.push({ recipient: recipient.email, messageId: emailRecord.messageId });
         } catch (e) {

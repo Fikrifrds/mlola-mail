@@ -226,6 +226,26 @@ router.post('/:id/send',
                     const recipientHtml = injectRecipientVariables(finalHtml, recipient);
                     const recipientText = injectRecipientVariables(finalText, recipient);
 
+                    // Create email record with campaign link
+                    const { data: emailRecord, error: emailError } = await db
+                        .from('emails')
+                        .insert({
+                            user_id: userId,
+                            template_id: campaign.template_id || null,
+                            campaign_id: id,
+                            recipients: JSON.stringify([{ email: recipient.email, name: recipient.name }]),
+                            status: 'pending',
+                            created_at: new Date().toISOString(),
+                        })
+                        .single()
+                        .execute();
+
+                    if (emailError) {
+                        console.error('Failed to create email record:', emailError);
+                        failureCount++;
+                        continue;
+                    }
+
                     await emailService.sendEmail(
                         userId,
                         recipient,
@@ -233,9 +253,16 @@ router.post('/:id/send',
                         recipientHtml,
                         recipientText,
                         campaign.template_id || undefined,
-                        undefined, // No parent email record for now, or create one per send
+                        emailRecord.id, // Pass email record ID
                         undefined
                     );
+
+                    // Update email status to sent
+                    await db.from('emails').update({
+                        status: 'sent',
+                        sent_at: new Date().toISOString()
+                    }).eq('id', emailRecord.id).execute();
+
                     successCount++;
                 } catch (error) {
                     console.error(`Failed to send campaign email to ${recipient.email}:`, error);

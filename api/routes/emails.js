@@ -223,38 +223,76 @@ router.get('/history',
     const userId = req.user.userId;
     const { page = 1, limit = 20, status } = req.query;
 
-    // Base query
-    let qb = db
-      .from('emails')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .range((Number(page) - 1) * Number(limit), Number(page) * Number(limit) - 1);
+    // Use raw SQL query to get all data with joins
+    let query = `
+      SELECT 
+        e.*,
+        t.id as template__id,
+        t.name as template__name,
+        t.subject as template__subject,
+        c.id as campaign__id,
+        c.name as campaign__name,
+        g.id as group__id,
+        g.name as group__name
+      FROM emails e
+      LEFT JOIN templates t ON e.template_id = t.id
+      LEFT JOIN campaigns c ON e.campaign_id = c.id
+      LEFT JOIN groups g ON c.group_id = g.id
+      WHERE e.user_id = $1
+    `;
+
+    const params = [userId];
+    let paramIndex = 2;
 
     if (status) {
-      qb = qb.eq('status', String(status));
+      query += ` AND e.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
     }
 
-    const { data: emails, error } = await qb.execute();
-    if (error) {
-      throw new Error(`Failed to fetch email history: ${error.message}`);
-    }
+    query += ` ORDER BY e.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(Number(limit), (Number(page) - 1) * Number(limit));
 
-    const list = emails || [];
-    const templateIds = Array.from(new Set(list.map(e => e.template_id).filter(Boolean)));
-    let templateMap = {};
-    if (templateIds.length) {
-      const { data: templates } = await db
-        .from('templates')
-        .select('id, name, subject')
-        .execute();
-      (templates || []).forEach((t) => { templateMap[t.id] = { name: t.name, subject: t.subject }; });
-    }
+    const { rows: emails } = await db.query(query, params);
 
-    const enriched = list.map(e => ({
-      ...e,
-      template: e.template_id ? templateMap[e.template_id] || null : null,
-    }));
+    // Transform flattened data into nested structure
+    const enriched = emails.map(e => {
+      const email = { ...e };
+
+      // Template
+      if (email.template__id) {
+        email.template = {
+          id: email.template__id,
+          name: email.template__name,
+          subject: email.template__subject,
+        };
+      }
+      delete email.template__id;
+      delete email.template__name;
+      delete email.template__subject;
+
+      // Campaign
+      if (email.campaign__id) {
+        email.campaign = {
+          id: email.campaign__id,
+          name: email.campaign__name,
+        };
+      }
+      delete email.campaign__id;
+      delete email.campaign__name;
+
+      // Group
+      if (email.group__id) {
+        email.group = {
+          id: email.group__id,
+          name: email.group__name,
+        };
+      }
+      delete email.group__id;
+      delete email.group__name;
+
+      return email;
+    });
 
     res.json({
       success: true,
@@ -266,6 +304,95 @@ router.get('/history',
         pages: Math.ceil(enriched.length / Number(limit)),
       },
     });
+  })
+);
+
+// Get single email details
+router.get('/:id',
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.userId;
+
+    // Fetch email with all related data
+    const { rows: [email] } = await db.query(`
+      SELECT 
+        e.*,
+        t.id as template__id,
+        t.name as template__name,
+        t.subject as template__subject,
+        t.html_content as template__html,
+        t.text_content as template__text,
+        c.id as campaign__id,
+        c.name as campaign__name,
+        c.subject as campaign__subject,
+        c.html_content as campaign__html,
+        c.text_content as campaign__text,
+        g.id as group__id,
+        g.name as group__name
+      FROM emails e
+      LEFT JOIN templates t ON e.template_id = t.id
+      LEFT JOIN campaigns c ON e.campaign_id = c.id
+      LEFT JOIN groups g ON c.group_id = g.id
+      WHERE e.id = $1 AND e.user_id = $2
+    `, [id, userId]);
+
+    if (!email) {
+      return res.status(404).json({ error: 'Email not found' });
+    }
+
+    // Get email events
+    const { rows: events } = await db.query(`
+      SELECT * FROM email_events 
+      WHERE email_id = $1 
+      ORDER BY occurred_at DESC
+    `, [id]);
+
+    // Transform data
+    const result = { ...email, events };
+
+    if (email.template__id) {
+      result.template = {
+        id: email.template__id,
+        name: email.template__name,
+        subject: email.template__subject,
+        html_content: email.template__html,
+        text_content: email.template__text,
+      };
+    }
+
+    if (email.campaign__id) {
+      result.campaign = {
+        id: email.campaign__id,
+        name: email.campaign__name,
+        subject: email.campaign__subject,
+        html_content: email.campaign__html,
+        text_content: email.campaign__text,
+      };
+    }
+
+    if (email.group__id) {
+      result.group = {
+        id: email.group__id,
+        name: email.group__name,
+      };
+    }
+
+    // Clean up flattened fields
+    delete result.template__id;
+    delete result.template__name;
+    delete result.template__subject;
+    delete result.template__html;
+    delete result.template__text;
+    delete result.campaign__id;
+    delete result.campaign__name;
+    delete result.campaign__subject;
+    delete result.campaign__html;
+    delete result.campaign__text;
+    delete result.group__id;
+    delete result.group__name;
+
+    res.json({ success: true, email: result });
   })
 );
 

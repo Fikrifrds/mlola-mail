@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
-import { Mail, Plus, Calendar, Send, FileText, Users, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Mail, Plus, Calendar, Send, FileText, Users, CheckCircle, AlertCircle, Clock, Eye, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -8,6 +8,9 @@ const Campaigns = () => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [detailModal, setDetailModal] = useState(false);
+    const [campaignDetail, setCampaignDetail] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(false);
 
     // Form state
     const [step, setStep] = useState(1);
@@ -65,6 +68,21 @@ const Campaigns = () => {
         setShowCreateModal(true);
     };
 
+    const handleViewDetails = async (campaign) => {
+        setCampaignDetail(campaign);
+        setDetailModal(true);
+        setDetailLoading(true);
+        try {
+            const response = await api.get(`/campaigns/${campaign.id}`);
+            setCampaignDetail(response.data.campaign);
+        } catch (error) {
+            console.error('Failed to fetch campaign details:', error);
+            toast.error('Failed to load campaign details');
+        } finally {
+            setDetailLoading(false);
+        }
+    };
+
     const handleSend = async (campaignId) => {
         if (!confirm('Are you sure you want to send this campaign now?')) return;
         try {
@@ -106,6 +124,18 @@ const Campaigns = () => {
             case 'failed': return <AlertCircle className="w-4 h-4 mr-1" />;
             default: return <FileText className="w-4 h-4 mr-1" />;
         }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(date);
     };
 
     if (loading) {
@@ -204,15 +234,24 @@ const Campaigns = () => {
                                         ) : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        {campaign.status === 'draft' && (
+                                        <div className="flex items-center justify-end gap-3">
                                             <button
-                                                onClick={() => handleSend(campaign.id)}
-                                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 flex items-center justify-end w-full"
+                                                onClick={() => handleViewDetails(campaign)}
+                                                className="text-gray-600 hover:text-gray-900 dark:text-gray-400 inline-flex items-center gap-1"
                                             >
-                                                <Send className="w-4 h-4 mr-1" />
-                                                Send Now
+                                                <Eye className="w-4 h-4" />
+                                                Details
                                             </button>
-                                        )}
+                                            {campaign.status === 'draft' && (
+                                                <button
+                                                    onClick={() => handleSend(campaign.id)}
+                                                    className="text-blue-600 hover:text-blue-900 dark:text-blue-400 inline-flex items-center gap-1"
+                                                >
+                                                    <Send className="w-4 h-4" />
+                                                    Send Now
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
@@ -317,6 +356,124 @@ const Campaigns = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Detail Modal */}
+            {detailModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                Campaign Details
+                            </h2>
+                            <button
+                                onClick={() => setDetailModal(false)}
+                                className="text-gray-500 hover:text-gray-700 dark:text-gray-400"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {detailLoading ? (
+                            <div className="text-center py-8 text-gray-600 dark:text-gray-400">Loading...</div>
+                        ) : campaignDetail ? (
+                            <div className="space-y-4">
+                                {/* Basic Info */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Campaign Name</label>
+                                        <div className="text-sm text-gray-900 dark:text-white font-medium">
+                                            {campaignDetail.name}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(campaignDetail.status)}`}>
+                                            {getStatusIcon(campaignDetail.status)}
+                                            {campaignDetail.status.charAt(0).toUpperCase() + campaignDetail.status.slice(1)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Subject */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Subject</label>
+                                    <div className="text-sm text-gray-900 dark:text-white">
+                                        {campaignDetail.subject}
+                                    </div>
+                                </div>
+
+                                {/* Audience */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Target Audience</label>
+                                    <div className="text-sm text-gray-900 dark:text-white">
+                                        {campaignDetail.group_name || 'No Group'}
+                                    </div>
+                                </div>
+
+                                {/* Template */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Template</label>
+                                    <div className="text-sm text-gray-900 dark:text-white">
+                                        {campaignDetail.template_name || 'No Template'}
+                                    </div>
+                                </div>
+
+                                {/* Stats */}
+                                {campaignDetail.status === 'completed' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Statistics</label>
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                                                <div className="text-xs text-gray-500 dark:text-gray-400">Total Recipients</div>
+                                                <div className="text-lg font-semibold text-gray-900 dark:text-white">{campaignDetail.total_recipients || 0}</div>
+                                            </div>
+                                            <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                                                <div className="text-xs text-green-600 dark:text-green-400">Successful</div>
+                                                <div className="text-lg font-semibold text-green-600 dark:text-green-400">{campaignDetail.successful_sends || 0}</div>
+                                            </div>
+                                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
+                                                <div className="text-xs text-red-600 dark:text-red-400">Failed</div>
+                                                <div className="text-lg font-semibold text-red-600 dark:text-red-400">{campaignDetail.failed_sends || 0}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Dates */}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Created</label>
+                                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                                            {formatDate(campaignDetail.created_at)}
+                                        </div>
+                                    </div>
+                                    {campaignDetail.sent_at && (
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sent</label>
+                                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                                                {formatDate(campaignDetail.sent_at)}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Content Preview */}
+                                {campaignDetail.html_content && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content Preview</label>
+                                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-900 max-h-96 overflow-y-auto">
+                                            <div
+                                                className="prose dark:prose-invert max-w-none"
+                                                dangerouslySetInnerHTML={{ __html: campaignDetail.html_content }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             )}

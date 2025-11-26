@@ -68,7 +68,7 @@ const Dashboard = () => {
       <div className={`absolute inset-0 opacity-5 ${gradient}`}></div>
       <div className="relative p-6">
         <div className="flex items-center justify-between mb-4">
-          <div className={`p-3 rounded-xl ${gradient} bg-opacity-10`}>
+          <div className={`p-3 rounded-xl ${gradient} text-white shadow-lg`}>
             <Icon className="w-6 h-6" />
           </div>
           {trend && (

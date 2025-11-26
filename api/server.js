@@ -16,6 +16,7 @@ import trackingRoutes from './routes/tracking.js';
 import senderAddressRoutes from './routes/senderAddresses.js';
 import contactRoutes from './routes/contacts.js';
 import userRoutes from './routes/users.js';
+import brandRoutes from './routes/brands.js';
 
 // Load environment variables
 dotenv.config();
@@ -90,6 +91,7 @@ app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/sender-addresses', senderAddressRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/brands', brandRoutes);
 
 // Webhook endpoint for email events (public endpoint)
 app.post('/webhooks/email-events', express.json(), async (req, res) => {

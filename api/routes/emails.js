@@ -15,19 +15,61 @@ router.post('/send',
   asyncHandler(async (req, res) => {
     const { recipients, templateId, variables, scheduledAt, subject, htmlContent, textContent, senderAddressId } = req.body;
     const userId = req.user.userId;
+    // If template provided, fetch it
     let template = null;
+    let brand = null;
     if (templateId) {
-      const { data: tmpl } = await db
+      const { data: tpl } = await db
         .from('templates')
         .select('*')
         .eq('id', templateId)
         .eq('user_id', userId)
         .single()
         .execute();
-      if (!tmpl) {
+
+      if (!tpl) {
         return res.status(404).json({ error: 'Template not found' });
       }
-      template = tmpl;
+      template = tpl;
+
+      // If template has a brand, fetch brand data
+      if (template && template.brand_id) {
+        const { data: brandData } = await db
+          .from('brands')
+          .select('*')
+          .eq('id', template.brand_id)
+          .single()
+          .execute();
+        brand = brandData;
+      }
+    }
+
+    // Helper function to inject brand variables
+    const injectBrandVariables = (content, brandData) => {
+      if (!brandData || !content) return content;
+      let injected = content;
+      // Official brand variables
+      injected = injected.replace(/\{\{brand_name\}\}/g, brandData.name || '');
+      injected = injected.replace(/\{\{brand_logo\}\}/g, brandData.logo_url || '');
+      injected = injected.replace(/\{\{brand_website\}\}/g, brandData.website || '');
+      // Common aliases
+      injected = injected.replace(/\{\{company\}\}/g, brandData.name || '');
+      injected = injected.replace(/\{\{company_name\}\}/g, brandData.name || '');
+      injected = injected.replace(/\{\{company_logo\}\}/g, brandData.logo_url || '');
+      injected = injected.replace(/\{\{company_website\}\}/g, brandData.website || '');
+      return injected;
+    };
+
+    // Prepare email content with brand variables injected
+    let finalSubject = template ? template.subject : subject;
+    let finalHtmlContent = template ? template.html_content : htmlContent;
+    let finalTextContent = template ? template.text_content : textContent;
+
+    // Inject brand variables if brand exists
+    if (brand) {
+      finalSubject = injectBrandVariables(finalSubject, brand);
+      finalHtmlContent = injectBrandVariables(finalHtmlContent, brand);
+      finalTextContent = injectBrandVariables(finalTextContent, brand);
     }
 
     // Create email record
@@ -57,9 +99,9 @@ router.post('/send',
           const emailRecord = await emailService.sendEmail(
             userId,
             recipient,
-            template ? template.subject : subject,
-            template ? template.html_content : htmlContent,
-            template ? template.text_content : textContent,
+            finalSubject,  // Use brand-injected subject
+            finalHtmlContent,  // Use brand-injected HTML
+            finalTextContent,  // Use brand-injected text
             templateId || undefined,
             email.id,
             senderAddressId || undefined  // Pass sender address ID

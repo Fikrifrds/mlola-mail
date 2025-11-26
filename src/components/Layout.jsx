@@ -4,16 +4,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   LayoutDashboard,
-  Send,
-  Mail,
-  Users,
   FileText,
-  History,
+  Send,
+  Users,
   BarChart3,
   Settings,
-  LogOut,
+  Mail,
+  History,
   Sun,
-  Moon
+  Moon,
+  LogOut,
+  Building2,
 } from 'lucide-react';
 
 const Layout = ({ children }) => {
@@ -25,6 +26,7 @@ const Layout = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Templates', href: '/templates', icon: FileText },
     { name: 'Send Email', href: '/send', icon: Send },
+    { name: 'Brands', href: '/brands', icon: Building2 },
     { name: 'Senders', href: '/senders', icon: Mail },
     { name: 'Contacts', href: '/contacts', icon: Users },
     { name: 'History', href: '/history', icon: History },
@@ -58,8 +60,8 @@ const Layout = ({ children }) => {
                 key={item.name}
                 to={item.href}
                 className={`flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 group ${active
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg scale-105'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:scale-105'
+                    ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg scale-105'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:scale-105'
                   }`}
               >
                 <Icon className={`w-5 h-5 mr-3 ${active ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />

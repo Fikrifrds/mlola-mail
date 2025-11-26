@@ -49,15 +49,17 @@ export const sendEmailSchema = Joi.object({
 export const templateSchema = Joi.object({
   name: Joi.string().min(1).max(255).required(),
   subject: Joi.string().min(1).max(500).required(),
-  htmlContent: Joi.string().required(),
-  textContent: Joi.string().optional(),
+  htmlContent: Joi.string().allow('').optional(),
+  textContent: Joi.string().allow('').optional(),
   variables: Joi.array().items(Joi.string()).optional(),
+  brandId: Joi.string().uuid().allow(null).optional(),
   // Make type optional with sensible default
   type: Joi.string().valid('transactional', 'marketing').optional().default('transactional'),
 })
   // Accept snake_case payloads
   .rename('html_content', 'htmlContent', { ignoreUndefined: true, override: true })
-  .rename('text_content', 'textContent', { ignoreUndefined: true, override: true });
+  .rename('text_content', 'textContent', { ignoreUndefined: true, override: true })
+  .rename('brand_id', 'brandId', { ignoreUndefined: true, override: true });
 
 export const webhookSchema = Joi.object({
   url: Joi.string().uri().required(),
@@ -108,3 +110,13 @@ export const contactSchema = Joi.object({
   isActive: Joi.boolean().optional(),
 })
   .rename('is_active', 'isActive', { ignoreUndefined: true, override: true });
+
+// Brand schema for managing brands/companies
+export const brandSchema = Joi.object({
+  name: Joi.string().min(1).max(255).required(),
+  logoUrl: Joi.string().uri().allow('').optional(),
+  website: Joi.string().uri().allow('').optional(),
+  isDefault: Joi.boolean().optional(),
+})
+  .rename('logo_url', 'logoUrl', { ignoreUndefined: true, override: true })
+  .rename('is_default', 'isDefault', { ignoreUndefined: true, override: true });

@@ -3,8 +3,7 @@ import { Pool } from 'pg';
 
 dotenv.config();
 
-// Lazy pool creation to avoid crashing the server when env is missing.
-// Code paths that need DB will get a clear runtime error if unset.
+// Lazy pool creation
 let _pool = null;
 function getPool() {
   if (_pool) return _pool;
@@ -15,13 +14,29 @@ function getPool() {
   _pool = new Pool({ connectionString: databaseUrl });
   return _pool;
 }
+
+// Test connection
+getPool().connect((err, client, release) => {
+  if (err) {
+    console.error('❌ Error acquiring client', err.stack);
+  } else {
+    console.log('✅ Database connected successfully');
+    release();
+  }
+});
+
+// Export raw pool for direct queries
 export const pool = {
   query: async (text, params) => getPool().query(text, params),
 };
 
+// Helper function to check if a value is an operation object
+const isOperation = (value) => typeof value === 'object' && value !== null && value.__raw !== undefined;
+
 class QueryBuilder {
-  constructor(table) {
+  constructor(table, dbPool) {
     this.table = table;
+    this.dbPool = dbPool; // Store the pool instance
     this.whereClauses = [];
     this.selectColumns = undefined;
     this.insertData = undefined;
@@ -245,11 +260,8 @@ class QueryBuilder {
   }
 }
 
-function isOperation(val) {
-  return val && typeof val === 'object' && '__raw' in val;
-}
-
 export const db = {
+  query: (text, params) => pool.query(text, params),
   from(table) {
     return new QueryBuilder(table);
   },

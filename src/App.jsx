@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import SenderAddresses from './pages/SenderAddresses';
 import Contacts from './pages/Contacts';
 import EmailHistory from './pages/EmailHistory';
+import Brands from './pages/Brands';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -72,6 +73,14 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Contacts />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/brands" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Brands />
                   </Layout>
                 </ProtectedRoute>
               } />

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../config/database.js';
+import { db, pool } from '../config/database.js';
 import { validateRequest } from '../middleware/validation.js';
 import { templateSchema } from '../validation/schemas.js';
 import { authenticateToken } from '../middleware/auth.js';
@@ -14,31 +14,54 @@ router.get('/',
     const userId = req.user.userId;
     const { page = 1, limit = 20, type } = req.query;
 
-    let query = db
-      .from('templates')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .range((Number(page) - 1) * Number(limit), Number(page) * Number(limit) - 1);
+    // First get templates
+    let query = `
+      SELECT 
+        t.*,
+        b.id as brand__id,
+        b.name as brand__name,
+        b.logo_url as brand__logo_url,
+        b.website as brand__website
+      FROM templates t
+      LEFT JOIN brands b ON t.brand_id = b.id
+      WHERE t.user_id = $1
+      ORDER BY t.created_at DESC
+      LIMIT $2 OFFSET $3
+    `;
 
-    if (type) {
-      query = query.eq('type', type);
-    }
+    const { rows: templates } = await db.query(query, [
+      userId,
+      Number(limit),
+      (Number(page) - 1) * Number(limit)
+    ]);
 
-    const { data: templates, error } = await query.execute();
-
-    if (error) {
-      throw new Error(`Failed to fetch templates: ${error.message}`);
-    }
+    // Transform to include brand object
+    const templatesWithBrands = templates.map(t => {
+      const template = { ...t };
+      if (template.brand__id) {
+        template.brand = {
+          id: template.brand__id,
+          name: template.brand__name,
+          logo_url: template.brand__logo_url,
+          website: template.brand__website
+        };
+      }
+      // Clean up flattened fields
+      delete template.brand__id;
+      delete template.brand__name;
+      delete template.brand__logo_url;
+      delete template.brand__website;
+      return template;
+    });
 
     res.json({
       success: true,
-      templates: templates || [],
+      templates: templatesWithBrands || [],
       pagination: {
         page: Number(page),
         limit: Number(limit),
-        total: (templates || []).length,
-        pages: Math.ceil(((templates || []).length) / Number(limit)),
+        total: templatesWithBrands.length,
+        pages: Math.ceil(templatesWithBrands.length / Number(limit)),
       },
     });
   })
@@ -75,26 +98,35 @@ router.post('/',
   validateRequest(templateSchema),
   asyncHandler(async (req, res) => {
     const userId = req.user.userId;
-    const { name, subject, htmlContent, textContent, variables, type } = req.body;
+    const { name, subject, htmlContent, textContent, variables, type, brandId } = req.body;
 
+    const templateData = {
+      user_id: userId,
+      name,
+      subject,
+      html_content: htmlContent || '',
+      text_content: textContent || '',
+      variables: variables || [],
+      type: type || 'transactional',
+      brand_id: brandId || null,
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log('Creating template with data:', templateData);
+
+    // Insert with RETURNING to get created record
     const { data: template, error } = await db
       .from('templates')
-      .insert([{
-        user_id: userId,
-        name,
-        subject,
-        html_content: htmlContent,
-        text_content: textContent,
-        variables: variables || [],
-        type,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }])
-      .select()
-      .single();
+      .insert(templateData)  // Single object, not array
+      .single()  // This tells it to return single record
+      .execute();
+
+    console.log('Insert result:', { template, error });
 
     if (error) {
+      console.error('Insert error:', error);
       throw new Error(`Failed to create template: ${error.message}`);
     }
 
@@ -112,7 +144,7 @@ router.put('/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     const userId = req.user.userId;
-    const { name, subject, htmlContent, textContent, variables, type } = req.body;
+    const { name, subject, htmlContent, textContent, variables, type, brandId } = req.body;
 
     // Check if template exists and belongs to user
     const { data: existingTemplate } = await db
@@ -120,30 +152,40 @@ router.put('/:id',
       .select('id')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .single()
+      .execute();
 
     if (!existingTemplate) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    const { data: template, error } = await db
+    // Update template
+    const { error } = await db
       .from('templates')
       .update({
         name,
         subject,
-        html_content: htmlContent,
-        text_content: textContent,
+        html_content: htmlContent || '',
+        text_content: textContent || '',
         variables: variables || [],
-        type,
+        type: type || 'transactional',
+        brand_id: brandId || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select()
-      .single();
+      .execute();
 
     if (error) {
       throw new Error(`Failed to update template: ${error.message}`);
     }
+
+    // Fetch updated template
+    const { data: template } = await db
+      .from('templates')
+      .select('*')
+      .eq('id', id)
+      .single()
+      .execute();
 
     res.json({
       success: true,
@@ -165,16 +207,21 @@ router.delete('/:id',
       .select('id')
       .eq('id', id)
       .eq('user_id', userId)
-      .single();
+      .single()
+      .execute();
 
     if (!existingTemplate) {
-      return res.status(404).json({ error: 'Template not found' });
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found'
+      });
     }
 
     const { error } = await db
       .from('templates')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .execute();
 
     if (error) {
       throw new Error(`Failed to delete template: ${error.message}`);

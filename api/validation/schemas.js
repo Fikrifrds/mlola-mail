@@ -98,8 +98,34 @@ export const senderAddressSchema = Joi.object({
   isActive: Joi.boolean().optional(),
 })
   .rename('smtp_password', 'smtpPassword', { ignoreUndefined: true, override: true })
-  .rename('is_default', 'isDefault', { ignoreUndefined: true, override: true })
-  .rename('is_active', 'isActive', { ignoreUndefined: true, override: true });
+  .rename('is_default', 'isDefault', { ignoreUndefined: true, override: true });
+
+export const groupSchema = Joi.object({
+  name: Joi.string().min(1).max(255).required(),
+  description: Joi.string().allow('').optional(),
+});
+
+export const groupMemberSchema = Joi.object({
+  contactIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
+})
+  .rename('contact_ids', 'contactIds', { ignoreUndefined: true, override: true });
+
+export const campaignSchema = Joi.object({
+  name: Joi.string().min(1).max(255).required(),
+  subject: Joi.string().min(1).max(500).optional(),
+  templateId: Joi.string().uuid().allow(null).optional(),
+  groupId: Joi.string().uuid().allow(null).optional(),
+  htmlContent: Joi.string().allow('').optional(),
+  textContent: Joi.string().allow('').optional(),
+  scheduledAt: Joi.date().iso().allow(null).optional(),
+  status: Joi.string().valid('draft', 'scheduled', 'sending').optional(),
+})
+  .rename('template_id', 'templateId', { ignoreUndefined: true, override: true })
+  .rename('group_id', 'groupId', { ignoreUndefined: true, override: true })
+  .rename('html_content', 'htmlContent', { ignoreUndefined: true, override: true })
+  .rename('text_content', 'textContent', { ignoreUndefined: true, override: true })
+  .rename('scheduled_at', 'scheduledAt', { ignoreUndefined: true, override: true });
+
 
 // Contact schema for managing recipients
 export const contactSchema = Joi.object({

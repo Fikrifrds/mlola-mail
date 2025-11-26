@@ -15,6 +15,8 @@ import SenderAddresses from './pages/SenderAddresses';
 import Contacts from './pages/Contacts';
 import EmailHistory from './pages/EmailHistory';
 import Brands from './pages/Brands';
+import Groups from './pages/Groups';
+import Campaigns from './pages/Campaigns';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -81,6 +83,22 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Brands />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/groups" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Groups />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+
+              <Route path="/campaigns" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Campaigns />
                   </Layout>
                 </ProtectedRoute>
               } />

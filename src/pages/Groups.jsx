@@ -127,20 +127,38 @@ const Groups = () => {
         }
     };
 
+    const toggleSelectAll = () => {
+        const availableContactIds = filteredContacts.map(c => c.id);
+        if (selectedContacts.length === availableContactIds.length) {
+            // Deselect all
+            setSelectedContacts([]);
+        } else {
+            // Select all visible contacts
+            setSelectedContacts(availableContactIds);
+        }
+    };
+
     const handleAddMembers = async () => {
         if (selectedContacts.length === 0) {
             toast.error('Please select at least one contact');
             return;
         }
+
         try {
             await api.post(`/groups/${selectedGroup.id}/members`, {
-                contactIds: selectedContacts
+                contactIds: selectedContacts,
             });
             toast.success('Members added successfully');
             setShowMembersModal(false);
+            setSelectedContacts([]);
+            // Assuming fetchGroupMembers is a function that fetches members for a specific group
+            // and viewMembersModal holds the ID of the group whose members are currently being viewed
+            // if (selectedGroup.id === viewMembersModal) {
+            //     fetchGroupMembers(selectedGroup.id);
+            // }
             fetchGroups(); // Refresh to update member count
         } catch (error) {
-            toast.error('Failed to add members');
+            toast.error(error.response?.data?.message || 'Failed to add members');
         }
     };
 
@@ -348,7 +366,20 @@ const Groups = () => {
                                 <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0">
                                     <tr>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-10">
-                                            Select
+                                            <div
+                                                className="flex items-center gap-2 cursor-pointer"
+                                                onClick={toggleSelectAll}
+                                            >
+                                                <div className={`w-5 h-5 border rounded flex items-center justify-center ${selectedContacts.length === filteredContacts.length && filteredContacts.length > 0
+                                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                                        : selectedContacts.length > 0
+                                                            ? 'bg-blue-300 border-blue-300 text-white'
+                                                            : 'border-gray-300 dark:border-gray-600'
+                                                    }`}>
+                                                    {selectedContacts.length > 0 && <Check className="w-3 h-3" />}
+                                                </div>
+                                                <span className="text-xs">All</span>
+                                            </div>
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                             Name

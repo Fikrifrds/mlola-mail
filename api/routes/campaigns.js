@@ -289,4 +289,99 @@ router.post('/:id/send',
     })
 );
 
+// Send test email for campaign
+router.post('/:id/test',
+    authenticateToken,
+    asyncHandler(async (req, res) => {
+        const userId = req.user.userId;
+        const { id } = req.params;
+        const { testEmail } = req.body;
+
+        if (!testEmail) {
+            return res.status(400).json({ error: 'Test email address is required' });
+        }
+
+        // Fetch campaign
+        const { rows: [campaign] } = await db.query(`
+            SELECT 
+                c.*,
+                g.name as group_name,
+                t.name as template_name,
+                t.subject as tpl_subject,
+                t.html_content as tpl_html,
+                t.text_content as tpl_text
+            FROM campaigns c
+            LEFT JOIN groups g ON c.group_id = g.id
+            LEFT JOIN templates t ON c.template_id = t.id
+            WHERE c.id = $1 AND c.user_id = $2
+        `, [id, userId]);
+
+        if (!campaign) {
+            return res.status(404).json({ error: 'Campaign not found' });
+        }
+
+        // Fetch brand if exists
+        let brand = null;
+        if (campaign.brand_id) {
+            const { rows: [brandData] } = await db.query('SELECT * FROM brands WHERE id = $1', [campaign.brand_id]);
+            brand = brandData;
+        }
+
+        const subject = campaign.subject || campaign.tpl_subject;
+        let htmlContent = campaign.html_content || campaign.tpl_html;
+        let textContent = campaign.text_content || campaign.tpl_text;
+        const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+        // Apply brand variables
+        if (brand) {
+            htmlContent = htmlContent.replace(/\{\{brand_name\}\}/g, brand.name || '');
+            htmlContent = htmlContent.replace(/\{\{brand_logo\}\}/g, brand.logo_url || '');
+            htmlContent = htmlContent.replace(/\{\{brand_website\}\}/g, brand.website || '');
+            textContent = textContent?.replace(/\{\{brand_name\}\}/g, brand.name || '');
+        }
+
+        // Apply recipient variables with test data
+        htmlContent = htmlContent.replace(/\{\{name\}\}/g, 'Test User');
+        htmlContent = htmlContent.replace(/\{\{email\}\}/g, testEmail);
+        htmlContent = htmlContent.replace(/\{\{unsubscribe_url\}\}/g, `${clientUrl}/unsubscribe?token=TEST_TOKEN`);
+
+        textContent = textContent?.replace(/\{\{name\}\}/g, 'Test User');
+        textContent = textContent?.replace(/\{\{email\}\}/g, testEmail);
+        textContent = textContent?.replace(/\{\{unsubscribe_url\}\}/g, `${clientUrl}/unsubscribe?token=TEST_TOKEN`);
+
+        // Create test email record
+        const { rows: [emailRecord] } = await db.query(`
+            INSERT INTO emails (user_id, template_id, recipients, status, created_at)
+            VALUES ($1, $2, $3, $4, NOW())
+            RETURNING *
+        `, [
+            userId,
+            campaign.template_id || null,
+            JSON.stringify([{ email: testEmail, name: 'Test User' }]),
+            'pending'
+        ]);
+
+        // Send test email
+        await emailService.sendEmail(
+            userId,
+            { email: testEmail, name: 'Test User' },
+            `[TEST] ${subject}`,
+            htmlContent,
+            textContent,
+            campaign.template_id || undefined,
+            emailRecord.id,
+            undefined
+        );
+
+        // Update email status
+        await db.query(`
+            UPDATE emails 
+            SET status = 'sent', sent_at = NOW() 
+            WHERE id = $1
+        `, [emailRecord.id]);
+
+        res.json({ success: true, message: 'Test email sent successfully' });
+    })
+);
+
 export default router;

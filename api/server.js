@@ -19,9 +19,20 @@ import userRoutes from './routes/users.js';
 import brandRoutes from './routes/brands.js';
 import groupRoutes from './routes/groups.js';
 import campaignRoutes from './routes/campaigns.js';
+import uploadRoutes from './routes/upload.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { startScheduler } from './worker/scheduler.js';
+
+// Get current directory for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
+
+// Start campaign scheduler
+startScheduler();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -71,6 +82,9 @@ const authLimiter = rateLimit({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Serve static files from public/uploads
+app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -96,6 +110,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/brands', brandRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Webhook endpoint for email events (public endpoint)
 app.post('/webhooks/email-events', express.json(), async (req, res) => {
